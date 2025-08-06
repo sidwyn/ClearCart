@@ -80,8 +80,22 @@ async function analyzeProductInBackground(productUrl, sourceTabId) {
     
     const html = await response.text();
     
-    // Parse the HTML to extract review data
-    const productData = await parseProductHTML(html, productUrl);
+    // Send HTML to content script for parsing (since DOMParser isn't available in service worker)
+    const productData = await new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(sourceTabId, {
+        action: 'parseProductHTML',
+        html: html,
+        productUrl: productUrl
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else if (response && response.success) {
+          resolve(response.data);
+        } else {
+          reject(new Error('Failed to parse HTML'));
+        }
+      });
+    });
     
     // Calculate trust score
     const trustScore = await calculateTrustScoreFromData(productData);
@@ -100,101 +114,6 @@ async function analyzeProductInBackground(productUrl, sourceTabId) {
   }
 }
 
-// Parse product HTML to extract review data
-async function parseProductHTML(html, productUrl) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  
-  const data = {
-    productUrl: productUrl,
-    productTitle: '',
-    totalReviews: 0,
-    averageRating: 0,
-    verifiedPercentage: 0,
-    ratingDistribution: {},
-    reviews: [],
-    reviewTimestamps: []
-  };
-
-  try {
-    // Get product title
-    const titleElement = doc.querySelector('#productTitle');
-    data.productTitle = titleElement ? titleElement.textContent.trim() : '';
-
-    // Get average rating
-    const ratingElement = doc.querySelector('[data-hook="average-star-rating"] .a-offscreen, .a-icon-alt');
-    if (ratingElement) {
-      const ratingText = ratingElement.textContent;
-      const ratingMatch = ratingText.match(/(\d+\.?\d*)/);
-      data.averageRating = ratingMatch ? parseFloat(ratingMatch[1]) : 0;
-    }
-
-    // Get total review count
-    const reviewCountElement = doc.querySelector('[data-hook="total-review-count"]');
-    if (reviewCountElement) {
-      const countText = reviewCountElement.textContent.replace(/,/g, '');
-      const countMatch = countText.match(/(\d+)/);
-      data.totalReviews = countMatch ? parseInt(countMatch[1]) : 0;
-    }
-
-    // Get rating distribution
-    const histogramElements = doc.querySelectorAll('[data-hook="histogram-count"]');
-    histogramElements.forEach((element, index) => {
-      const percentage = parseFloat(element.textContent.replace('%', ''));
-      data.ratingDistribution[5 - index] = percentage;
-    });
-
-    // Get sample reviews from the page
-    const reviewElements = doc.querySelectorAll('[data-hook="review"]');
-    reviewElements.forEach(reviewEl => {
-      try {
-        const review = {
-          text: '',
-          rating: 0,
-          isVerified: false,
-          date: '',
-          helpful: 0
-        };
-
-        // Get review text
-        const textElement = reviewEl.querySelector('[data-hook="review-body"] span');
-        review.text = textElement ? textElement.textContent.trim() : '';
-
-        // Get rating
-        const ratingElement = reviewEl.querySelector('[data-hook="review-star-rating"] .a-offscreen');
-        if (ratingElement) {
-          const ratingMatch = ratingElement.textContent.match(/(\d+)/);
-          review.rating = ratingMatch ? parseInt(ratingMatch[1]) : 0;
-        }
-
-        // Check if verified purchase
-        review.isVerified = !!reviewEl.querySelector('[data-hook="avp-badge"]');
-
-        // Get review date
-        const dateElement = reviewEl.querySelector('[data-hook="review-date"]');
-        if (dateElement) {
-          review.date = dateElement.textContent.trim();
-          data.reviewTimestamps.push(review.date);
-        }
-
-        if (review.text && review.text.length > 10) {
-          data.reviews.push(review);
-        }
-      } catch (error) {
-        console.error('Error parsing review:', error);
-      }
-    });
-
-    // Calculate verified percentage
-    const verifiedCount = data.reviews.filter(r => r.isVerified).length;
-    data.verifiedPercentage = data.reviews.length > 0 ? (verifiedCount / data.reviews.length) * 100 : 0;
-
-  } catch (error) {
-    console.error('Error parsing product HTML:', error);
-  }
-
-  return data;
-}
 
 // Calculate trust score from parsed data
 async function calculateTrustScoreFromData(data) {

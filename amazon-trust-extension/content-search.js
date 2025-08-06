@@ -161,6 +161,16 @@
     if (request.action === 'updateTrustScore') {
       // Update trust score indicator for specific product
       updateProductTrustScore(request.productUrl, request.trustScore);
+    } else if (request.action === 'parseProductHTML') {
+      // Parse HTML for background script (since DOMParser isn't available there)
+      try {
+        const productData = parseProductHTML(request.html, request.productUrl);
+        sendResponse({ success: true, data: productData });
+      } catch (error) {
+        console.error('Error parsing HTML:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+      return true; // Keep message channel open for async response
     }
   });
 
@@ -192,6 +202,102 @@
     if (button) {
       button.textContent = text;
     }
+  }
+
+  // Parse product HTML to extract review data (for background script)
+  function parseProductHTML(html, productUrl) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    
+    const data = {
+      productUrl: productUrl,
+      productTitle: '',
+      totalReviews: 0,
+      averageRating: 0,
+      verifiedPercentage: 0,
+      ratingDistribution: {},
+      reviews: [],
+      reviewTimestamps: []
+    };
+
+    try {
+      // Get product title
+      const titleElement = doc.querySelector('#productTitle');
+      data.productTitle = titleElement ? titleElement.textContent.trim() : '';
+
+      // Get average rating
+      const ratingElement = doc.querySelector('[data-hook="average-star-rating"] .a-offscreen, .a-icon-alt');
+      if (ratingElement) {
+        const ratingText = ratingElement.textContent;
+        const ratingMatch = ratingText.match(/(\d+\.?\d*)/);
+        data.averageRating = ratingMatch ? parseFloat(ratingMatch[1]) : 0;
+      }
+
+      // Get total review count
+      const reviewCountElement = doc.querySelector('[data-hook="total-review-count"]');
+      if (reviewCountElement) {
+        const countText = reviewCountElement.textContent.replace(/,/g, '');
+        const countMatch = countText.match(/(\d+)/);
+        data.totalReviews = countMatch ? parseInt(countMatch[1]) : 0;
+      }
+
+      // Get rating distribution
+      const histogramElements = doc.querySelectorAll('[data-hook="histogram-count"]');
+      histogramElements.forEach((element, index) => {
+        const percentage = parseFloat(element.textContent.replace('%', ''));
+        data.ratingDistribution[5 - index] = percentage;
+      });
+
+      // Get sample reviews from the page
+      const reviewElements = doc.querySelectorAll('[data-hook="review"]');
+      reviewElements.forEach(reviewEl => {
+        try {
+          const review = {
+            text: '',
+            rating: 0,
+            isVerified: false,
+            date: '',
+            helpful: 0
+          };
+
+          // Get review text
+          const textElement = reviewEl.querySelector('[data-hook="review-body"] span');
+          review.text = textElement ? textElement.textContent.trim() : '';
+
+          // Get rating
+          const ratingElement = reviewEl.querySelector('[data-hook="review-star-rating"] .a-offscreen');
+          if (ratingElement) {
+            const ratingMatch = ratingElement.textContent.match(/(\d+)/);
+            review.rating = ratingMatch ? parseInt(ratingMatch[1]) : 0;
+          }
+
+          // Check if verified purchase
+          review.isVerified = !!reviewEl.querySelector('[data-hook="avp-badge"]');
+
+          // Get review date
+          const dateElement = reviewEl.querySelector('[data-hook="review-date"]');
+          if (dateElement) {
+            review.date = dateElement.textContent.trim();
+            data.reviewTimestamps.push(review.date);
+          }
+
+          if (review.text && review.text.length > 10) {
+            data.reviews.push(review);
+          }
+        } catch (error) {
+          console.error('Error parsing review:', error);
+        }
+      });
+
+      // Calculate verified percentage
+      const verifiedCount = data.reviews.filter(r => r.isVerified).length;
+      data.verifiedPercentage = data.reviews.length > 0 ? (verifiedCount / data.reviews.length) * 100 : 0;
+
+    } catch (error) {
+      console.error('Error parsing product HTML:', error);
+    }
+
+    return data;
   }
 
 })();
