@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ClearCart Icon Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        .icon-set { margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>ClearCart Icon Generator</h1>
+    <p>This generates the icon files for the ClearCart extension - a simple green checkmark on white background.</p>
+    
+    <div class="icon-set">
+        <h3>16x16</h3>
+        <canvas id="icon16" width="16" height="16"></canvas>
+        <button onclick="downloadIcon('icon16', 'icon-16.png')">Download</button>
+    </div>
+    
+    <div class="icon-set">
+        <h3>32x32</h3>
+        <canvas id="icon32" width="32" height="32"></canvas>
+        <button onclick="downloadIcon('icon32', 'icon-32.png')">Download</button>
+    </div>
+    
+    <div class="icon-set">
+        <h3>48x48</h3>
+        <canvas id="icon48" width="48" height="48"></canvas>
+        <button onclick="downloadIcon('icon48', 'icon-48.png')">Download</button>
+    </div>
+    
+    <div class="icon-set">
+        <h3>128x128</h3>
+        <canvas id="icon128" width="128" height="128"></canvas>
+        <button onclick="downloadIcon('icon128', 'icon-128.png')">Download</button>
+    </div>
+
+    <script>
+        function drawIcon(canvas) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+            
+            // White background circle with border
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - 1, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Light gray border
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = Math.max(1, size / 64);
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2 - 1, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Green checkmark
+            ctx.strokeStyle = '#22C55E';
+            ctx.lineWidth = Math.max(2, size / 10);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            const scale = size / 128;
+            
+            ctx.beginPath();
+            ctx.moveTo(35 * scale, 64 * scale);
+            ctx.lineTo(55 * scale, 84 * scale);
+            ctx.lineTo(93 * scale, 46 * scale);
+            ctx.stroke();
+        }
+        
+        function downloadIcon(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+        
+        // Draw all icons on page load
+        window.onload = function() {
+            ['icon16', 'icon32', 'icon48', 'icon128'].forEach(id => {
+                const canvas = document.getElementById(id);
+                drawIcon(canvas);
+            });
+        };
+    </script>
+</body>
+</html>

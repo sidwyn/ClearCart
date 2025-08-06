@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trust Score Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .product {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>Trust Score Color Test</h1>
+    
+    <div class="product">
+        <span class="trust-score-product-indicator trust-score-high">89</span>
+        <span style="margin-left: 10px;">High Trust Product (Purple vs Orange)</span>
+    </div>
+    
+    <div class="product">
+        <span class="trust-score-product-indicator trust-score-medium">67</span>
+        <span style="margin-left: 10px;">Medium Trust Product</span>
+    </div>
+    
+    <div class="product">
+        <span class="trust-score-product-indicator trust-score-low">34</span>
+        <span style="margin-left: 10px;">Low Trust Product</span>
+    </div>
+    
+    <div class="product">
+        <span class="trust-score-product-indicator loading">TS</span>
+        <span style="margin-left: 10px;">Loading State with Ellipsis Animation</span>
+    </div>
+    
+    <link rel="stylesheet" href="styles.css">
+</body>
+</html>

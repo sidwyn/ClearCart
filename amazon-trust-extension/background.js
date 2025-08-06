@@ -18,6 +18,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Handle messages from content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('Background received message:', request.action, request);
   switch (request.action) {
     case 'analyzeProducts':
       handleAnalyzeProducts(request.urls, sender.tab.id);
@@ -50,7 +51,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Analyze product pages without opening tabs
 async function handleAnalyzeProducts(urls, sourceTabId) {
-  console.log(`Analyzing ${urls.length} products in background`);
+  console.log(`Analyzing ${urls.length} products in background`, urls, 'for tab', sourceTabId);
   
   for (const url of urls.slice(0, 5)) { // Limit to 5 to avoid overwhelming
     try {
@@ -104,7 +105,8 @@ async function analyzeProductInBackground(productUrl, sourceTabId) {
     chrome.tabs.sendMessage(sourceTabId, {
       action: 'updateTrustScore',
       productUrl: productUrl,
-      trustScore: trustScore.trust_score
+      trustScore: trustScore.trust_score,
+      breakdown: trustScore.breakdown
     }).catch(() => {
       // Tab might be closed, ignore error
     });
