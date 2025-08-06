@@ -70,19 +70,32 @@
     });
   }
 
-  // Open product pages in background tabs for analysis
+  // Analyze products in background without opening tabs
   function analyzeProducts() {
     const productUrls = getProductUrls();
     console.log(`Found ${productUrls.length} products to analyze`);
 
-    // Limit to first 10 products to avoid overwhelming
-    const urlsToAnalyze = productUrls.slice(0, 10);
+    if (productUrls.length === 0) {
+      updateAnalyzeButtonText('No products found');
+      return;
+    }
+
+    // Update button to show progress
+    updateAnalyzeButtonText(`Analyzing ${Math.min(productUrls.length, 5)} products...`);
     
-    // Send message to background script to open tabs
+    // Limit to first 5 products to avoid overwhelming
+    const urlsToAnalyze = productUrls.slice(0, 5);
+    
+    // Send message to background script for analysis
     chrome.runtime.sendMessage({
       action: 'analyzeProducts',
       urls: urlsToAnalyze
     });
+    
+    // Reset button after a delay
+    setTimeout(() => {
+      updateAnalyzeButtonText('Analyze Trust Scores');
+    }, 10000);
   }
 
   // Initialize
@@ -172,6 +185,13 @@
     if (score >= 80) return 'trust-score-high';
     if (score >= 60) return 'trust-score-medium';
     return 'trust-score-low';
+  }
+
+  function updateAnalyzeButtonText(text) {
+    const button = document.querySelector('.trust-score-analyze-button');
+    if (button) {
+      button.textContent = text;
+    }
   }
 
 })();

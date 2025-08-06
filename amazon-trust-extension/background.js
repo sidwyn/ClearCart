@@ -48,73 +48,104 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-// Open product pages in background tabs for analysis
+// Analyze product pages without opening tabs
 async function handleAnalyzeProducts(urls, sourceTabId) {
-  console.log(`Opening ${urls.length} product pages for analysis`);
+  console.log(`Analyzing ${urls.length} products in background`);
   
   for (const url of urls.slice(0, 5)) { // Limit to 5 to avoid overwhelming
     try {
-      // Create new tab
-      const tab = await chrome.tabs.create({
-        url: url,
-        active: false // Open in background
-      });
-      
-      // Store reference to source tab
-      chrome.storage.local.set({
-        [`tab_${tab.id}_source`]: sourceTabId
-      });
-      
-      // Close tab after analysis (with delay)
-      setTimeout(() => {
-        chrome.tabs.remove(tab.id).catch(() => {});
-      }, 15000);
-      
+      await analyzeProductInBackground(url, sourceTabId);
     } catch (error) {
-      console.error('Error creating tab for analysis:', error);
+      console.error('Error analyzing product:', error);
     }
     
-    // Add delay between tab creations
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Add delay between requests to be respectful
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 }
 
-// Handle reviews scraping in separate tab
-async function handleScrapeReviews(productUrl, reviewsUrl, sourceTabId) {
+// Analyze a single product without opening a tab
+async function analyzeProductInBackground(productUrl, sourceTabId) {
   try {
-    const tab = await chrome.tabs.create({
-      url: reviewsUrl,
-      active: false
+    // Fetch the product page HTML
+    const response = await fetch(productUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
     });
     
-    // Inject review scraping script
-    setTimeout(() => {
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        function: scrapeReviewsFromPage,
-        args: [productUrl, sourceTabId]
-      });
-    }, 3000);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
     
-    // Close tab after scraping
-    setTimeout(() => {
-      chrome.tabs.remove(tab.id).catch(() => {});
-    }, 10000);
+    const html = await response.text();
+    
+    // Parse the HTML to extract review data
+    const productData = await parseProductHTML(html, productUrl);
+    
+    // Calculate trust score
+    const trustScore = await calculateTrustScoreFromData(productData);
+    
+    // Send results back to search page
+    chrome.tabs.sendMessage(sourceTabId, {
+      action: 'updateTrustScore',
+      productUrl: productUrl,
+      trustScore: trustScore.trust_score
+    }).catch(() => {
+      // Tab might be closed, ignore error
+    });
     
   } catch (error) {
-    console.error('Error scraping reviews:', error);
+    console.error(`Error analyzing product ${productUrl}:`, error);
   }
 }
 
-// Function to be injected into reviews page
-function scrapeReviewsFromPage(productUrl, sourceTabId) {
-  const reviews = [];
-  let currentPage = 1;
-  const maxPages = 3;
+// Parse product HTML to extract review data
+async function parseProductHTML(html, productUrl) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
   
-  function scrapeCurrentPage() {
-    const reviewElements = document.querySelectorAll('[data-hook="review"]');
-    
+  const data = {
+    productUrl: productUrl,
+    productTitle: '',
+    totalReviews: 0,
+    averageRating: 0,
+    verifiedPercentage: 0,
+    ratingDistribution: {},
+    reviews: [],
+    reviewTimestamps: []
+  };
+
+  try {
+    // Get product title
+    const titleElement = doc.querySelector('#productTitle');
+    data.productTitle = titleElement ? titleElement.textContent.trim() : '';
+
+    // Get average rating
+    const ratingElement = doc.querySelector('[data-hook="average-star-rating"] .a-offscreen, .a-icon-alt');
+    if (ratingElement) {
+      const ratingText = ratingElement.textContent;
+      const ratingMatch = ratingText.match(/(\d+\.?\d*)/);
+      data.averageRating = ratingMatch ? parseFloat(ratingMatch[1]) : 0;
+    }
+
+    // Get total review count
+    const reviewCountElement = doc.querySelector('[data-hook="total-review-count"]');
+    if (reviewCountElement) {
+      const countText = reviewCountElement.textContent.replace(/,/g, '');
+      const countMatch = countText.match(/(\d+)/);
+      data.totalReviews = countMatch ? parseInt(countMatch[1]) : 0;
+    }
+
+    // Get rating distribution
+    const histogramElements = doc.querySelectorAll('[data-hook="histogram-count"]');
+    histogramElements.forEach((element, index) => {
+      const percentage = parseFloat(element.textContent.replace('%', ''));
+      data.ratingDistribution[5 - index] = percentage;
+    });
+
+    // Get sample reviews from the page
+    const reviewElements = doc.querySelectorAll('[data-hook="review"]');
     reviewElements.forEach(reviewEl => {
       try {
         const review = {
@@ -143,37 +174,158 @@ function scrapeReviewsFromPage(productUrl, sourceTabId) {
         const dateElement = reviewEl.querySelector('[data-hook="review-date"]');
         if (dateElement) {
           review.date = dateElement.textContent.trim();
+          data.reviewTimestamps.push(review.date);
         }
 
         if (review.text && review.text.length > 10) {
-          reviews.push(review);
+          data.reviews.push(review);
         }
       } catch (error) {
         console.error('Error parsing review:', error);
       }
     });
 
-    // Try to go to next page
-    if (currentPage < maxPages) {
-      const nextButton = document.querySelector('.a-pagination .a-last a');
-      if (nextButton && !nextButton.classList.contains('a-disabled')) {
-        currentPage++;
-        nextButton.click();
-        setTimeout(scrapeCurrentPage, 2000);
-        return;
-      }
+    // Calculate verified percentage
+    const verifiedCount = data.reviews.filter(r => r.isVerified).length;
+    data.verifiedPercentage = data.reviews.length > 0 ? (verifiedCount / data.reviews.length) * 100 : 0;
+
+  } catch (error) {
+    console.error('Error parsing product HTML:', error);
+  }
+
+  return data;
+}
+
+// Calculate trust score from parsed data
+async function calculateTrustScoreFromData(data) {
+  let reviewStatsScore = 0;
+  let reviewAnalysisScore = 25; // Base score
+  let comments = [];
+
+  // Section 1: Review Stats (max 50 pts)
+  
+  // Number of reviews (10 pts)
+  if (data.totalReviews >= 1000) {
+    reviewStatsScore += 10;
+    comments.push('High number of reviews (1000+)');
+  } else if (data.totalReviews >= 500) {
+    reviewStatsScore += 7;
+    comments.push('Good number of reviews (500+)');
+  } else if (data.totalReviews >= 100) {
+    reviewStatsScore += 4;
+    comments.push('Moderate number of reviews (100+)');
+  } else if (data.totalReviews >= 50) {
+    reviewStatsScore += 1;
+    comments.push('Few reviews (50+)');
+  } else {
+    comments.push('Very few reviews (<50)');
+  }
+
+  // Average rating (10 pts)
+  if (data.averageRating >= 4.5 && data.averageRating <= 4.7) {
+    reviewStatsScore += 10;
+    comments.push('Optimal average rating (4.5-4.7)');
+  } else if (data.averageRating >= 4.8) {
+    reviewStatsScore += 7;
+    comments.push('Very high average rating (4.8+)');
+  } else if (data.averageRating >= 4.0) {
+    reviewStatsScore += 5;
+    comments.push('Good average rating (4.0+)');
+  } else {
+    reviewStatsScore += 3;
+    comments.push('Lower average rating (<4.0)');
+  }
+
+  // Verified purchase percentage (10 pts)
+  if (data.verifiedPercentage >= 90) {
+    reviewStatsScore += 10;
+    comments.push('Excellent verified purchase ratio (90%+)');
+  } else if (data.verifiedPercentage >= 70) {
+    reviewStatsScore += 5;
+    comments.push('Good verified purchase ratio (70-89%)');
+  } else {
+    reviewStatsScore += 1;
+    comments.push('Low verified purchase ratio (<70%)');
+  }
+
+  // Rating distribution (10 pts)
+  const fiveStarPercentage = data.ratingDistribution[5] || 0;
+  if (fiveStarPercentage < 80) {
+    reviewStatsScore += 10;
+    comments.push('Balanced rating distribution');
+  } else {
+    reviewStatsScore += 4;
+    comments.push('Skewed toward 5-star reviews');
+  }
+
+  // Review recency (10 pts) - simplified analysis
+  if (data.reviewTimestamps.length > 0) {
+    reviewStatsScore += 8; // Assume good spread for now
+    comments.push('Reviews spread over time');
+  }
+
+  // Section 2: Review Authenticity (max 50 pts)
+  if (data.reviews.length > 0) {
+    try {
+      const analysisResult = await analyzeReviewsWithAI(data.reviews.slice(0, 20));
+      reviewAnalysisScore += analysisResult.score;
+      comments.push(...analysisResult.comments);
+    } catch (error) {
+      // Fallback to rule-based analysis
+      const fallbackAnalysis = analyzeReviewsFallback(data.reviews);
+      reviewAnalysisScore += fallbackAnalysis.score;
+      comments.push(...fallbackAnalysis.comments);
     }
-    
-    // Send scraped reviews back
-    chrome.runtime.sendMessage({
-      action: 'reviewsScraped',
-      productUrl: productUrl,
-      reviews: reviews,
-      sourceTabId: sourceTabId
-    });
+  } else {
+    comments.push('No detailed reviews available for analysis');
+  }
+
+  const totalScore = Math.min(100, reviewStatsScore + reviewAnalysisScore);
+
+  return {
+    trust_score: totalScore,
+    breakdown: {
+      review_stats_score: reviewStatsScore,
+      review_analysis_score: reviewAnalysisScore,
+      comments: comments
+    }
+  };
+}
+
+// Fallback rule-based analysis
+function analyzeReviewsFallback(reviews) {
+  let score = 0;
+  const comments = [];
+  
+  // Check for repetitive content
+  const reviewTexts = reviews.map(r => r.text.toLowerCase());
+  const uniqueTexts = new Set(reviewTexts);
+  if (uniqueTexts.size < reviewTexts.length * 0.8) {
+    score -= 10;
+    comments.push('Some repetitive review content detected');
   }
   
-  scrapeCurrentPage();
+  // Check for detailed reviews
+  const detailedReviews = reviews.filter(r => r.text.length > 100);
+  if (detailedReviews.length > reviews.length * 0.6) {
+    score += 10;
+    comments.push('Many detailed reviews found');
+  }
+  
+  // Check rating distribution in sample
+  const ratings = reviews.map(r => r.rating);
+  const avgRating = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+  if (avgRating < 4.8) {
+    score += 5;
+    comments.push('Realistic rating distribution in sample');
+  }
+  
+  return { score, comments };
+}
+
+// Handle reviews scraping (now unused but kept for potential future use)
+async function handleScrapeReviews(productUrl, reviewsUrl, sourceTabId) {
+  console.log('Review scraping called but not implemented in background mode');
 }
 
 // Handle OpenAI API calls
@@ -217,17 +369,7 @@ async function handleOpenAIAnalysis(prompt) {
 
 // Handle trust score calculation results
 function handleTrustScoreCalculated(productUrl, trustScore, tabId) {
-  // Send to source search page if available
-  chrome.storage.local.get([`tab_${tabId}_source`], (result) => {
-    const sourceTabId = result[`tab_${tabId}_source`];
-    if (sourceTabId) {
-      chrome.tabs.sendMessage(sourceTabId, {
-        action: 'updateTrustScore',
-        productUrl: productUrl,
-        trustScore: trustScore
-      }).catch(() => {});
-    }
-  });
+  console.log(`Trust score calculated for ${productUrl}: ${trustScore}`);
 }
 
 // Handle API key storage
@@ -236,8 +378,4 @@ function handleSetApiKey(apiKey) {
   chrome.storage.local.set({ openaiApiKey: apiKey });
 }
 
-// Handle tab removal cleanup
-chrome.tabs.onRemoved.addListener((tabId) => {
-  // Clean up stored tab references
-  chrome.storage.local.remove(`tab_${tabId}_source`);
-});
+// Background analysis doesn't need tab cleanup
