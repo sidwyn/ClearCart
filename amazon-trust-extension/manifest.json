@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Amazon Trust Score",
+  "version": "1.0.0",
+  "description": "Analyzes Amazon product reviews to generate trust scores and removes sponsored content",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.amazon.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.amazon.com/s*"],
+      "js": ["content-search.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://*.amazon.com/dp/*", "*://*.amazon.com/gp/product/*"],
+      "js": ["content-product.js"],
+      "css": ["styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Amazon Trust Score"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["trust-ui.html", "trust-ui.js"],
+      "matches": ["*://*.amazon.com/*"]
+    }
+  ]
+}

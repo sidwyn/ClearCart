@@ -1,0 +1,67 @@
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# API keys and sensitive data
+config/keys.js
+secrets/
+*.key
+*.pem
+
+# Chrome extension build artifacts
+dist/
+build/
+*.crx
+*.zip
+
+# Node modules (if using build tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Chrome extension development files
+manifest.json.backup
+*.bak
+
+# Package files
+*.tgz
+*.tar.gz
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Chrome user data directory (for testing)
+chrome-data/
+
+# Extension packaging files
+extension.zip
+extension.crx
+key.pem
