@@ -30,7 +30,7 @@
         return;
       }
 
-      const titleLink = result.querySelector('h2 a[href*="/dp/"], h2 a[href*="/gp/product/"]');
+      const titleLink = result.querySelector('a[href*="/dp/"], a[href*="/gp/product/"]');
       if (titleLink) {
         const url = new URL(titleLink.href, window.location.origin);
         // Clean URL to just include the product ID
@@ -47,14 +47,25 @@
 
   // Add trust score indicators to product links
   function addTrustScoreIndicators() {
-    const productLinks = document.querySelectorAll('h2 a[href*="/dp/"], h2 a[href*="/gp/product/"]');
-    productLinks.forEach(link => {
-      if (!link.querySelector('.trust-score-product-indicator')) {
+    const searchResults = document.querySelectorAll('[data-component-type="s-search-result"]');
+    searchResults.forEach(result => {
+      // Skip sponsored results
+      if (result.hasAttribute('data-sponsoring')) {
+        return;
+      }
+      
+      const titleLink = result.querySelector('a[href*="/dp/"], a[href*="/gp/product/"]');
+      if (titleLink && !result.querySelector('.trust-score-product-indicator')) {
         const indicator = document.createElement('span');
         indicator.className = 'trust-score-product-indicator';
         indicator.textContent = 'TS';
         indicator.title = 'Trust Score Available - Click to analyze';
-        link.parentNode.appendChild(indicator);
+        
+        // Find the title container and add indicator there
+        const titleContainer = result.querySelector('[data-cy="title-recipe"], h2, .s-size-mini');
+        if (titleContainer) {
+          titleContainer.appendChild(indicator);
+        }
       }
     });
   }
@@ -144,12 +155,15 @@
     const productId = productUrl.match(/\/dp\/([A-Z0-9]{10})/)?.[1];
     if (!productId) return;
 
-    const productLinks = document.querySelectorAll(`a[href*="${productId}"]`);
-    productLinks.forEach(link => {
-      const indicator = link.parentNode.querySelector('.trust-score-product-indicator');
-      if (indicator) {
-        indicator.textContent = trustScore.toString();
-        indicator.className = `trust-score-product-indicator ${getTrustScoreClass(trustScore)}`;
+    const searchResults = document.querySelectorAll('[data-component-type="s-search-result"]');
+    searchResults.forEach(result => {
+      const productLink = result.querySelector(`a[href*="${productId}"]`);
+      if (productLink) {
+        const indicator = result.querySelector('.trust-score-product-indicator');
+        if (indicator) {
+          indicator.textContent = trustScore.toString();
+          indicator.className = `trust-score-product-indicator ${getTrustScoreClass(trustScore)}`;
+        }
       }
     });
   }

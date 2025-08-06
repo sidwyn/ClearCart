@@ -11,7 +11,7 @@ const CONFIG = {
   SELECTORS: {
     // Amazon search page selectors
     SEARCH_RESULTS: '[data-component-type="s-search-result"]',
-    PRODUCT_LINKS: 'h2 a[href*="/dp/"], h2 a[href*="/gp/product/"]',
+    PRODUCT_LINKS: 'a[href*="/dp/"], a[href*="/gp/product/"]',
     SPONSORED: '[data-component-type="s-search-result"][data-sponsoring]',
     
     // Product page selectors
