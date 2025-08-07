@@ -750,7 +750,10 @@
     modal.innerHTML = `
       <div class="trust-score-modal-content">
         <div class="trust-score-modal-header">
-          <h3 class="trust-score-modal-title">Trust Score Analysis</h3>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src="${chrome.runtime.getURL('ClearCartIcon-original.png')}" alt="ClearCart" style="width: 32px; height: 32px;">
+            <h3 class="trust-score-modal-title">Trust Score Analysis</h3>
+          </div>
           <button class="trust-score-modal-close">×</button>
         </div>
         
