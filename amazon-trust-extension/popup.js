@@ -1,53 +1,81 @@
 // Popup script for extension settings
 document.addEventListener('DOMContentLoaded', function() {
     const apiKeyInput = document.getElementById('apiKey');
-    const saveButton = document.getElementById('saveApiKey');
-    const statusDiv = document.getElementById('apiStatus');
+    const enableRankingCheckbox = document.getElementById('enableRanking');
+    const saveButton = document.getElementById('saveSettings');
+    const statusDiv = document.getElementById('settingsStatus');
 
     // Load existing settings
     loadSettings();
 
-    // Save API key
+    // Save all settings
     saveButton.addEventListener('click', function() {
-        const apiKey = apiKeyInput.value.trim();
-        
-        if (!apiKey) {
-            showStatus('Please enter an API key', 'error');
-            return;
-        }
-        
-        if (!apiKey.startsWith('sk-')) {
-            showStatus('Invalid API key format', 'error');
-            return;
-        }
-
-        // Save to background script
-        chrome.runtime.sendMessage({
-            action: 'setApiKey',
-            apiKey: apiKey
-        }, function(response) {
-            if (response && response.success) {
-                showStatus('API key saved successfully!', 'success');
-                apiKeyInput.value = ''; // Clear input for security
-            } else {
-                showStatus('Failed to save API key', 'error');
-            }
-        });
+        saveAllSettings();
     });
 
-    // Handle Enter key in input
+    // Handle Enter key in API key input
     apiKeyInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             saveButton.click();
         }
     });
 
+    // Auto-save ranking setting when changed
+    enableRankingCheckbox.addEventListener('change', function() {
+        saveRankingSetting();
+    });
+
+    function saveAllSettings() {
+        const apiKey = apiKeyInput.value.trim();
+        const enableRanking = enableRankingCheckbox.checked;
+        
+        // Validate API key if provided
+        if (apiKey && !apiKey.startsWith('sk-')) {
+            showStatus('Invalid API key format', 'error');
+            return;
+        }
+
+        // Save settings to background script
+        chrome.runtime.sendMessage({
+            action: 'saveSettings',
+            settings: {
+                apiKey: apiKey || null,
+                enableRanking: enableRanking
+            }
+        }, function(response) {
+            if (response && response.success) {
+                showStatus('Settings saved successfully!', 'success');
+                if (apiKey) {
+                    apiKeyInput.value = ''; // Clear input for security
+                }
+            } else {
+                showStatus('Failed to save settings', 'error');
+            }
+        });
+    }
+
+    function saveRankingSetting() {
+        const enableRanking = enableRankingCheckbox.checked;
+        
+        chrome.runtime.sendMessage({
+            action: 'saveSetting',
+            setting: 'enableRanking',
+            value: enableRanking
+        });
+    }
+
     function loadSettings() {
         chrome.runtime.sendMessage({ action: 'getSettings' }, function(response) {
-            if (response && response.apiKey) {
-                showStatus('API key is configured', 'success');
-            } else {
-                showStatus('API key is required for AI analysis', 'info');
+            if (response) {
+                // Load API key status
+                if (response.apiKey) {
+                    showStatus('API key is configured', 'success');
+                } else {
+                    showStatus('API key is required for AI analysis', 'info');
+                }
+                
+                // Load ranking setting (default true if not set)
+                enableRankingCheckbox.checked = response.enableRanking !== false;
             }
         });
     }

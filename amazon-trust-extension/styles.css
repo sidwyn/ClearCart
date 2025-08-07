@@ -5,16 +5,16 @@
   right: 20px;
   width: 300px;
   background: white;
-  border: 2px solid #8B5CF6;
+  border: 2px solid #8b5cf6;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   z-index: 10000;
   font-family: Amazon Ember, Arial, sans-serif;
   font-size: 14px;
 }
 
 .trust-score-header {
-  background: #8B5CF6;
+  background: #8b5cf6;
   color: white;
   padding: 12px 16px;
   border-radius: 6px 6px 0 0;
@@ -50,19 +50,19 @@
   margin-bottom: 8px;
 }
 
-.trust-score-high { 
-  color: #007600; 
-  background-color: #d4edda !important;
+.trust-score-high {
+  color: #007600;
+  background-color: #008118 !important;
   opacity: 1 !important;
 }
-.trust-score-medium { 
-  color: #996633; 
-  background-color: #fff3cd !important;
+.trust-score-medium {
+  color: #996633;
+  background-color: #b48906 !important;
   opacity: 1 !important;
 }
-.trust-score-low { 
-  color: #cc0c39; 
-  background-color: #f8d7da !important;
+.trust-score-low {
+  color: #cc0c39;
+  background-color: #83363c !important;
   opacity: 1 !important;
 }
 
@@ -108,7 +108,7 @@
   padding: 8px 12px;
   margin: 4px 0;
   border-radius: 4px;
-  border-left: 3px solid #8B5CF6;
+  border-left: 3px solid #8b5cf6;
   font-size: 12px;
 }
 
@@ -138,7 +138,7 @@
 /* Product link indicators */
 .trust-score-product-indicator {
   display: inline-block;
-  background: #8B5CF6;
+  background: #8b5cf6;
   color: white;
   padding: 2px 6px;
   border-radius: 3px;
@@ -152,19 +152,27 @@
 }
 
 .trust-score-product-indicator.loading {
-  background: #9CA3AF;
+  background: #9ca3af;
 }
 
 .trust-score-product-indicator.loading::after {
-  content: '...';
+  content: "...";
   animation: ellipsis 1.5s infinite;
 }
 
 @keyframes ellipsis {
-  0% { content: ''; }
-  25% { content: '.'; }
-  50% { content: '..'; }
-  75% { content: '...'; }
+  0% {
+    content: "";
+  }
+  25% {
+    content: ".";
+  }
+  50% {
+    content: "..";
+  }
+  75% {
+    content: "...";
+  }
 }
 
 /* Hover tooltip for trust scores */
@@ -175,7 +183,7 @@
   transform: translateX(-50%);
   margin-bottom: 8px;
   padding: 14px;
-  background: #1F2937;
+  background: #1f2937;
   color: white;
   border-radius: 8px;
   font-size: 13px;
@@ -183,7 +191,7 @@
   max-width: 280px;
   min-width: 200px;
   white-space: normal;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   z-index: 10001;
   opacity: 0;
   pointer-events: none;
@@ -192,13 +200,13 @@
 }
 
 .trust-score-tooltip::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-top-color: #1F2937;
+  border-top-color: #1f2937;
 }
 
 .trust-score-product-indicator:hover .trust-score-tooltip {
@@ -228,7 +236,7 @@
   width: 90%;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   position: relative;
 }
 
@@ -275,15 +283,15 @@
 }
 
 .trust-score-modal-score.trust-score-high {
-  background: #d4edda;
+  background: #a3d4ac;
 }
 
 .trust-score-modal-score.trust-score-medium {
-  background: #fff3cd;
+  background: #ffdb70;
 }
 
 .trust-score-modal-score.trust-score-low {
-  background: #f8d7da;
+  background: #e89096;
 }
 
 .trust-score-modal-score-number {
@@ -306,7 +314,7 @@
   padding: 16px;
   background: #f8f9fa;
   border-radius: 8px;
-  border-left: 4px solid #8B5CF6;
+  border-left: 4px solid #8b5cf6;
 }
 
 .trust-score-modal-section h4 {
@@ -324,7 +332,7 @@
   margin: 8px 0;
   background: white;
   border-radius: 6px;
-  border-left: 3px solid #8B5CF6;
+  border-left: 3px solid #8b5cf6;
   font-size: 14px;
   line-height: 1.4;
 }

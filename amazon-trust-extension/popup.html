@@ -83,6 +83,18 @@
             font-weight: 500;
         }
         
+        .input-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+        
         button:hover {
             background: #e8890a;
         }
@@ -169,8 +181,21 @@
             <label for="apiKey">OpenAI API Key:</label>
             <input type="password" id="apiKey" placeholder="sk-...">
         </div>
-        <button id="saveApiKey">Save API Key</button>
-        <div id="apiStatus" class="status" style="display: none;"></div>
+        <button id="saveSettings">Save Settings</button>
+        <div id="settingsStatus" class="status" style="display: none;"></div>
+    </div>
+
+    <div class="section ranking-section">
+        <h3>Product Ranking</h3>
+        <div class="input-group">
+            <label for="enableRanking">
+                <input type="checkbox" id="enableRanking" checked> 
+                Rank products by trust score
+            </label>
+            <small style="color: #666; margin-top: 4px; display: block;">
+                When enabled, "Analyze All Products" will reorder products by trust score (highest first)
+            </small>
+        </div>
     </div>
 
     <div class="section">

@@ -7,6 +7,8 @@
   // Track analyzed products to avoid duplicate analysis
   const analyzedProducts = new Set();
   const analysisQueue = new Set();
+  let totalProductsToAnalyze = 0;
+  let analysisInProgress = false;
 
   // Remove sponsored content immediately
   function removeSponsoredContent() {
@@ -162,6 +164,8 @@
     // Clear existing tracking to allow re-analysis
     analyzedProducts.clear();
     analysisQueue.clear();
+    totalProductsToAnalyze = productUrls.length;
+    analysisInProgress = true;
 
     // Update button to show progress with warning
     updateAnalyzeButtonText(`Analyzing ${productUrls.length} products... (may be slow)`);
@@ -169,11 +173,8 @@
     // Add indicators to ALL products on the page (not just visible ones)
     addTrustScoreIndicatorsToAll();
     
-    // Reset button after estimated completion time
-    const estimatedTime = Math.max(10000, productUrls.length * 2000); // 2 seconds per product minimum
-    setTimeout(() => {
-      updateAnalyzeButtonText('Analyze All Products');
-    }, estimatedTime);
+    // Check completion periodically
+    checkAnalysisCompletion();
   }
 
   // Add indicators to ALL products on page (for button click)
@@ -247,17 +248,33 @@
 
     // Add analyze button
     addAnalyzeButton();
+    
+    // Add keyboard shortcut to show button again if hidden
+    document.addEventListener('keydown', (e) => {
+      // Ctrl+Shift+A to show analyze button again
+      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+        sessionStorage.removeItem('hideAnalyzeButton');
+        if (!document.querySelector('.trust-score-analyze-button')) {
+          addAnalyzeButton();
+        }
+        console.log('Analyze button restored via keyboard shortcut');
+      }
+    });
   }
 
   // Add analyze button to the page
   function addAnalyzeButton() {
+    console.log('addAnalyzeButton called');
+    
     if (document.querySelector('.trust-score-analyze-button')) {
       console.log('Analyze button already exists');
       return;
     }
 
     // Check if user has hidden the button this session
-    if (sessionStorage.getItem('hideAnalyzeButton') === 'true') {
+    const isHidden = sessionStorage.getItem('hideAnalyzeButton');
+    console.log('hideAnalyzeButton session value:', isHidden);
+    if (isHidden === 'true') {
       console.log('Analyze button hidden by user preference');
       return;
     }
@@ -306,36 +323,39 @@
     closeButton.textContent = '×';
     closeButton.style.cssText = `
       position: fixed;
-      top: 103px;
-      right: 175px;
+      top: 89px;
+      right: 17px;
       z-index: 10001;
       background: rgba(139, 92, 246, 0.9);
       color: white;
-      border: none;
-      padding: 8px 10px;
+      border: 2px solid white;
+      padding: 4px;
       border-radius: 50%;
       font-weight: bold;
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
       backdrop-filter: blur(2px);
       transition: all 0.2s ease;
-      width: 32px;
-      height: 32px;
+      width: 24px;
+      height: 24px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 14px;
+      line-height: 1;
     `;
     
     closeButton.title = 'Hide analyze button';
     
     closeButton.addEventListener('mouseenter', () => {
       closeButton.style.background = 'rgba(139, 92, 246, 1)';
+      closeButton.style.borderColor = 'white';
       closeButton.style.transform = 'scale(1.1)';
     });
     
     closeButton.addEventListener('mouseleave', () => {
       closeButton.style.background = 'rgba(139, 92, 246, 0.9)';
+      closeButton.style.borderColor = 'white';
       closeButton.style.transform = 'scale(1)';
     });
     
@@ -513,6 +533,201 @@
     const button = document.querySelector('.trust-score-analyze-button');
     if (button) {
       button.textContent = text;
+    }
+  }
+
+  // Check if analysis is complete and update button accordingly
+  function checkAnalysisCompletion() {
+    if (!analysisInProgress) return;
+    
+    const completionInterval = setInterval(() => {
+      if (!analysisInProgress) {
+        clearInterval(completionInterval);
+        return;
+      }
+      
+      // Count products with completed analysis (not loading)
+      const completedCount = document.querySelectorAll('.trust-score-product-indicator:not([data-loading])').length;
+      console.log(`Analysis progress: ${completedCount}/${totalProductsToAnalyze} products completed`);
+      
+      // Update button with progress
+      if (completedCount < totalProductsToAnalyze) {
+        updateAnalyzeButtonText(`Analyzing... ${completedCount}/${totalProductsToAnalyze} complete`);
+      } else {
+        // All analysis complete
+        analysisInProgress = false;
+        updateAnalyzeButtonText('Analysis Complete');
+        
+        // Check if ranking should be applied
+        chrome.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+          const shouldRank = response && response.enableRanking !== false;
+          console.log('Ranking enabled:', shouldRank);
+          
+          if (shouldRank) {
+            setTimeout(() => {
+              rankProductsByTrustScore();
+              updateAnalyzeButtonText('Analysis Complete - Ranked');
+              
+              // Scroll to top of results after ranking
+              scrollToTopOfResults();
+              
+              // Reset to default after showing completion message
+              setTimeout(() => {
+                updateAnalyzeButtonText('Analyze All Products');
+              }, 3000);
+            }, 1000);
+          } else {
+            // Scroll to top of results even without ranking
+            scrollToTopOfResults();
+            
+            // Reset to default after showing completion message
+            setTimeout(() => {
+              updateAnalyzeButtonText('Analyze All Products');
+            }, 3000);
+          }
+        });
+        
+        clearInterval(completionInterval);
+      }
+    }, 1000); // Check every second
+  }
+
+  // Rank products by trust score (highest first)
+  function rankProductsByTrustScore() {
+    console.log('Ranking products by trust score...');
+    
+    const searchResultsContainer = document.querySelector('[data-component-type="s-search-result"]')?.parentElement;
+    if (!searchResultsContainer) {
+      console.log('Could not find search results container');
+      return;
+    }
+
+    // Get all product results with trust scores
+    const productResults = [];
+    const searchResults = document.querySelectorAll('[data-component-type="s-search-result"]');
+    
+    searchResults.forEach(result => {
+      // Skip sponsored results
+      if (result.hasAttribute('data-sponsoring')) {
+        return;
+      }
+      
+      const trustScoreIndicator = result.querySelector('.trust-score-product-indicator');
+      let trustScore = -1; // Default for products without scores
+      
+      if (trustScoreIndicator && !trustScoreIndicator.hasAttribute('data-loading')) {
+        const scoreText = trustScoreIndicator.textContent;
+        if (scoreText && scoreText !== 'TS') {
+          trustScore = parseInt(scoreText) || -1;
+        }
+      }
+      
+      productResults.push({
+        element: result,
+        trustScore: trustScore,
+        originalPosition: Array.from(searchResults).indexOf(result)
+      });
+    });
+
+    // Sort by trust score (highest first), then by original position for ties
+    productResults.sort((a, b) => {
+      if (a.trustScore !== b.trustScore) {
+        return b.trustScore - a.trustScore; // Descending trust score
+      }
+      return a.originalPosition - b.originalPosition; // Original order for ties
+    });
+
+    // Reorder the DOM elements
+    productResults.forEach((productData, index) => {
+      const element = productData.element;
+      const parent = element.parentElement;
+      
+      // Remove and re-append to move to new position
+      parent.removeChild(element);
+      parent.appendChild(element);
+    });
+
+    console.log(`Ranked ${productResults.length} products by trust score`);
+    
+    // Add visual indicator that ranking was applied
+    addRankingIndicator();
+  }
+
+  // Add visual indicator that products have been ranked
+  function addRankingIndicator() {
+    // Remove existing indicator
+    const existingIndicator = document.querySelector('.trust-score-ranking-indicator');
+    if (existingIndicator) {
+      existingIndicator.remove();
+    }
+
+    const indicator = document.createElement('div');
+    indicator.className = 'trust-score-ranking-indicator';
+    indicator.style.cssText = `
+      position: fixed;
+      top: 140px;
+      right: 20px;
+      z-index: 9999;
+      background: rgba(34, 197, 94, 0.9);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      backdrop-filter: blur(2px);
+      transition: opacity 0.3s ease;
+    `;
+    indicator.textContent = '📊 Ranked by Trust Score';
+    
+    document.body.appendChild(indicator);
+    
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+      if (indicator.parentElement) {
+        indicator.style.opacity = '0';
+        setTimeout(() => {
+          if (indicator.parentElement) {
+            indicator.remove();
+          }
+        }, 300);
+      }
+    }, 4000);
+  }
+
+  // Scroll to the top of search results
+  function scrollToTopOfResults() {
+    console.log('Scrolling to top of search results...');
+    
+    // Find the first search result
+    const firstResult = document.querySelector('[data-component-type="s-search-result"]:not([data-sponsoring])');
+    
+    if (firstResult) {
+      // Scroll to the first result with some offset for better visibility
+      const offsetTop = firstResult.offsetTop - 100; // 100px offset from top
+      window.scrollTo({
+        top: Math.max(0, offsetTop),
+        behavior: 'smooth'
+      });
+      console.log('Scrolled to first search result');
+    } else {
+      // Fallback: scroll to a reasonable position near the search results
+      const searchContainer = document.querySelector('[data-component-type="s-search-result"]')?.parentElement;
+      if (searchContainer) {
+        const offsetTop = searchContainer.offsetTop - 100;
+        window.scrollTo({
+          top: Math.max(0, offsetTop),
+          behavior: 'smooth'
+        });
+        console.log('Scrolled to search results container');
+      } else {
+        // Ultimate fallback: scroll to top of page
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+        console.log('Scrolled to top of page');
+      }
     }
   }
 
